@@ -1,0 +1,296 @@
+// Borewell Billing & Management System — Prisma schema
+// Fully database-driven: all pricing lives in tables, never hardcoded.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // On serverless (Vercel), DATABASE_URL should be the *pooled* connection
+  // string and DIRECT_URL the direct one (used for migrations). Locally both
+  // can point at the same database.
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Master data
+// ---------------------------------------------------------------------------
+
+/// Available borewell diameters (e.g. 4.75", 6.5", 8"). New diameters can be
+/// added at runtime with no code changes.
+model BorewellType {
+  id           Int     @id @default(autoincrement())
+  diameterName String  @map("diameter_name") // stored as text so "4.75" is exact
+  isActive     Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  drillingRateSlabs    DrillingRateSlab[]
+  additionalChargeRates AdditionalChargeRate[]
+  borewellJobs         BorewellJob[]
+
+  @@map("borewell_types")
+}
+
+/// Depth-based drilling price slabs. The billing engine reads these rows to
+/// compute slab-wise drilling cost dynamically.
+model DrillingRateSlab {
+  id             Int      @id @default(autoincrement())
+  borewellTypeId Int      @map("borewell_type_id")
+  startDepth     Int      @map("start_depth")
+  endDepth       Int      @map("end_depth")
+  pricePerFt     Decimal  @map("price_per_ft") @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  borewellType BorewellType @relation(fields: [borewellTypeId], references: [id], onDelete: Cascade)
+
+  @@index([borewellTypeId, startDepth])
+  @@map("drilling_rate_slabs")
+}
+
+/// Kinds of additional charge (PVC casing, transport, cleaning, etc.).
+model AdditionalChargeType {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+  isActive    Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  rates AdditionalChargeRate[]
+
+  @@map("additional_charge_types")
+}
+
+/// Unit: how the charge is priced.
+enum ChargeUnit {
+  PER_FT   @map("per_ft")
+  PER_DAY  @map("per_day")
+  PER_HOLE @map("per_hole")
+  FIXED    @map("fixed")
+
+  @@map("charge_unit")
+}
+
+/// Price of a given additional charge for a specific borewell type.
+model AdditionalChargeRate {
+  id                     Int        @id @default(autoincrement())
+  additionalChargeTypeId Int        @map("additional_charge_type_id")
+  borewellTypeId         Int        @map("borewell_type_id")
+  price                  Decimal    @db.Decimal(10, 2)
+  unit                   ChargeUnit
+  isActive               Boolean    @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  chargeType   AdditionalChargeType @relation(fields: [additionalChargeTypeId], references: [id], onDelete: Cascade)
+  borewellType BorewellType         @relation(fields: [borewellTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([additionalChargeTypeId, borewellTypeId])
+  @@map("additional_charge_rates")
+}
+
+// ---------------------------------------------------------------------------
+// Customers & jobs
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id           Int     @id @default(autoincrement())
+  customerName String  @map("customer_name")
+  mobile       String
+  address      String?
+  village      String?
+  taluk        String?
+  district     String?
+  state        String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  jobs BorewellJob[]
+
+  @@index([mobile])
+  @@map("customers")
+}
+
+enum JobStatus {
+  DRAFT
+  UNPAID
+  PARTIAL
+  PAID
+  CANCELLED
+
+  @@map("job_status")
+}
+
+/// A drilling job = one bill. Stores the *computed* totals so historical bills
+/// stay correct even if rates change later.
+model BorewellJob {
+  id             Int       @id @default(autoincrement())
+  billNumber     String    @unique @map("bill_number")
+  customerId     Int       @map("customer_id")
+  borewellTypeId Int       @map("borewell_type_id")
+  drillingDate   DateTime  @map("drilling_date")
+  totalDepth     Int       @map("total_depth")
+  waterLevel     Int?      @map("water_level")
+  remarks        String?
+
+  subtotal   Decimal @db.Decimal(12, 2)
+  discount   Decimal @default(0) @db.Decimal(12, 2)
+  taxRate    Decimal @default(0) @map("tax_rate") @db.Decimal(5, 2) // GST-ready, disabled by default
+  taxAmount  Decimal @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  grandTotal Decimal @map("grand_total") @db.Decimal(12, 2)
+
+  status JobStatus @default(UNPAID)
+
+  cancelledAt     DateTime? @map("cancelled_at")
+  cancelledReason String?   @map("cancelled_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdById Int?    @map("created_by_id")
+
+  customer     Customer     @relation(fields: [customerId], references: [id])
+  borewellType BorewellType @relation(fields: [borewellTypeId], references: [id])
+  createdBy    User?        @relation(fields: [createdById], references: [id])
+  items        JobItem[]
+  payments     Payment[]
+
+  @@index([customerId])
+  @@index([drillingDate])
+  @@map("borewell_jobs")
+}
+
+enum JobItemType {
+  DRILLING
+  ADDITIONAL
+
+  @@map("job_item_type")
+}
+
+/// Line items on a bill. For drilling, one row per slab so the printed bill
+/// shows the full depth breakdown.
+model JobItem {
+  id          Int         @id @default(autoincrement())
+  jobId       Int         @map("job_id")
+  itemType    JobItemType @map("item_type")
+  description String
+  quantity    Decimal     @db.Decimal(10, 2)
+  unit        String
+  rate        Decimal     @db.Decimal(10, 2)
+  amount      Decimal     @db.Decimal(12, 2)
+
+  job BorewellJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("job_items")
+}
+
+enum PaymentMode {
+  CASH
+  UPI
+  BANK_TRANSFER
+  CHEQUE
+  CARD
+
+  @@map("payment_mode")
+}
+
+model Payment {
+  id              Int         @id @default(autoincrement())
+  jobId           Int         @map("job_id")
+  paymentDate     DateTime    @default(now()) @map("payment_date")
+  amount          Decimal     @db.Decimal(12, 2)
+  paymentMode     PaymentMode @map("payment_mode")
+  referenceNumber String?     @map("reference_number")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  job BorewellJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("payments")
+}
+
+// ---------------------------------------------------------------------------
+// Users & auth (RBAC)
+// ---------------------------------------------------------------------------
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  OPERATOR
+
+  @@map("role")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  name         String?
+  passwordHash String   @map("password_hash")
+  role         Role     @default(OPERATOR)
+  isActive     Boolean  @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  jobs           BorewellJob[]
+  rateChanges    RateChangeHistory[]
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Audit trail
+// ---------------------------------------------------------------------------
+
+/// Records every pricing change (who, what, when, why).
+model RateChangeHistory {
+  id          Int      @id @default(autoincrement())
+  tableName   String   @map("table_name")
+  recordId    Int      @map("record_id")
+  fieldName   String?  @map("field_name")
+  oldValue    String?  @map("old_value")
+  newValue    String?  @map("new_value")
+  changedById Int?     @map("changed_by_id")
+  reason      String?
+  changedAt   DateTime @default(now()) @map("changed_at")
+
+  changedBy User? @relation(fields: [changedById], references: [id])
+
+  @@index([tableName, recordId])
+  @@map("rate_change_history")
+}
+
+// ---------------------------------------------------------------------------
+// Company settings (single row, multi-company ready)
+// ---------------------------------------------------------------------------
+
+model CompanySetting {
+  id            Int     @id @default(autoincrement())
+  companyName   String  @map("company_name")
+  logoUrl       String? @map("logo_url")
+  address       String?
+  gstNumber     String? @map("gst_number")
+  contactNumber String? @map("contact_number")
+  email         String?
+  footerText    String? @map("footer_text")
+  currency      String  @default("INR")
+  gstEnabled    Boolean @default(false) @map("gst_enabled")
+  defaultTaxRate Decimal @default(0) @map("default_tax_rate") @db.Decimal(5, 2)
+  billPrefix    String  @default("VB") @map("bill_prefix")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("company_settings")
+}

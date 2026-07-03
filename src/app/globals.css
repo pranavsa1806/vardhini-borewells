@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+/*
+  Design tokens. Dark, modern SaaS dashboard aesthetic matching the reference:
+  near-black canvas, elevated charcoal cards, emerald accent, soft borders.
+  Light mode is also fully defined and toggled via the `.light` class on <html>.
+*/
+
+@theme {
+  --color-border: hsl(240 6% 20%);
+  --color-input: hsl(240 6% 18%);
+  --color-ring: hsl(158 64% 45%);
+
+  --color-background: hsl(240 10% 6%);
+  --color-foreground: hsl(0 0% 98%);
+
+  --color-card: hsl(240 8% 9%);
+  --color-card-foreground: hsl(0 0% 98%);
+
+  --color-popover: hsl(240 9% 11%);
+  --color-popover-foreground: hsl(0 0% 98%);
+
+  --color-primary: hsl(158 64% 45%);
+  --color-primary-foreground: hsl(240 10% 6%);
+
+  --color-secondary: hsl(240 6% 15%);
+  --color-secondary-foreground: hsl(0 0% 98%);
+
+  --color-muted: hsl(240 6% 14%);
+  --color-muted-foreground: hsl(240 5% 60%);
+
+  --color-accent: hsl(240 6% 16%);
+  --color-accent-foreground: hsl(0 0% 98%);
+
+  --color-destructive: hsl(0 72% 51%);
+  --color-destructive-foreground: hsl(0 0% 98%);
+
+  --color-success: hsl(158 64% 45%);
+  --color-warning: hsl(38 92% 50%);
+
+  --color-sidebar: hsl(240 9% 8%);
+
+  --radius-lg: 1rem;
+  --radius-md: 0.75rem;
+  --radius-sm: 0.5rem;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+/* Light theme overrides */
+.light {
+  --color-border: hsl(240 6% 90%);
+  --color-input: hsl(240 6% 94%);
+  --color-ring: hsl(158 64% 40%);
+
+  --color-background: hsl(240 20% 97%);
+  --color-foreground: hsl(240 10% 10%);
+
+  --color-card: hsl(0 0% 100%);
+  --color-card-foreground: hsl(240 10% 10%);
+
+  --color-popover: hsl(0 0% 100%);
+  --color-popover-foreground: hsl(240 10% 10%);
+
+  --color-primary: hsl(158 64% 40%);
+  --color-primary-foreground: hsl(0 0% 100%);
+
+  --color-secondary: hsl(240 6% 94%);
+  --color-secondary-foreground: hsl(240 10% 10%);
+
+  --color-muted: hsl(240 6% 94%);
+  --color-muted-foreground: hsl(240 5% 45%);
+
+  --color-accent: hsl(240 6% 92%);
+  --color-accent-foreground: hsl(240 10% 10%);
+
+  --color-sidebar: hsl(0 0% 100%);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Thin, themed scrollbars */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-muted-foreground);
+  }
+}
+
+/* Print styles for A4 bills — hide app chrome, show only the receipt. */
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+  }
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+}

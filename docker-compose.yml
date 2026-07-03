@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: borewellbills_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: borewell
+      POSTGRES_PASSWORD: borewell_secret
+      POSTGRES_DB: borewellbills
+    ports:
+      # Host 5544 -> container 5432 to avoid clashing with local Postgres installs
+      - "5544:5432"
+    volumes:
+      - borewell_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U borewell -d borewellbills"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  borewell_pgdata:
