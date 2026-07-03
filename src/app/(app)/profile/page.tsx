@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { logoutAction } from "@/app/actions/auth";
 import { ROLE_LABELS, can, type Permission } from "@/lib/rbac";
 import { initials } from "@/lib/utils";
-import { LogOut, ShieldCheck } from "lucide-react";
+import { LogOut, ShieldCheck, KeyRound } from "lucide-react";
+import { ChangePasswordForm } from "./change-password-form";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Profile — Vardhini Borewells" };
@@ -72,6 +73,17 @@ export default async function ProfilePage() {
                 </div>
               ))}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <KeyRound className="h-4 w-4 text-primary" /> Change Password
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ChangePasswordForm />
           </CardContent>
         </Card>
       </div>
