@@ -139,7 +139,7 @@ async function main() {
       create: { username: u.username, name: u.name, role: u.role, passwordHash },
     });
   }
-  console.log(`  ✓ users (admin/admin123, manager/manager123, operator/operator123)`);
+  console.log(`  ✓ users (passwords from ADMIN_PASSWORD / MANAGER_PASSWORD / OPERATOR_PASSWORD env, else demo defaults)`);
 
   // --- Company settings ---
   const existingSetting = await prisma.companySetting.findFirst();
