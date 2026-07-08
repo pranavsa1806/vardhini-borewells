@@ -26,10 +26,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { upsertChargeRate, deleteChargeRate, createChargeType } from "@/app/actions/master";
+import { upsertChargeRate, deleteChargeRate, createChargeType, deleteChargeType } from "@/app/actions/master";
 import { unitLabel, type ChargeUnit } from "@/lib/calc";
 import { formatCurrency } from "@/lib/utils";
-import { Database, Plus, Pencil, Trash2, Loader2, Tag } from "lucide-react";
+import { Database, Plus, Pencil, Trash2, Loader2, Tag, Settings2 } from "lucide-react";
 
 interface Row {
   id: number;
@@ -64,12 +64,23 @@ export function AdditionalChargesClient({
   const [creating, setCreating] = React.useState(false);
   const [deleting, setDeleting] = React.useState<Row | null>(null);
   const [newTypeOpen, setNewTypeOpen] = React.useState(false);
+  const [manageTypesOpen, setManageTypesOpen] = React.useState(false);
+
+  // How many price rows each charge type has (for the manage-types dialog).
+  const typeUsage = React.useMemo(() => {
+    const m = new Map<number, number>();
+    for (const r of rows) m.set(r.additionalChargeTypeId, (m.get(r.additionalChargeTypeId) ?? 0) + 1);
+    return m;
+  }, [rows]);
 
   const filtered = filter === "ALL" ? rows : rows.filter((r) => String(r.borewellTypeId) === filter);
 
   return (
     <>
       <PageHeader title="Additional Charges" description="PVC, transport, cleaning and more — priced per borewell type.">
+        <Button variant="outline" onClick={() => setManageTypesOpen(true)}>
+          <Settings2 className="h-4 w-4" /> Manage Types
+        </Button>
         <Button variant="outline" onClick={() => setNewTypeOpen(true)}>
           <Tag className="h-4 w-4" /> New Charge Type
         </Button>
@@ -162,6 +173,14 @@ export function AdditionalChargesClient({
       />
 
       <NewChargeTypeDialog open={newTypeOpen} onOpenChange={setNewTypeOpen} onSaved={() => router.refresh()} />
+
+      <ManageTypesDialog
+        open={manageTypesOpen}
+        onOpenChange={setManageTypesOpen}
+        chargeTypes={chargeTypes}
+        typeUsage={typeUsage}
+        onChanged={() => router.refresh()}
+      />
 
       <ConfirmDialog
         open={!!deleting}
@@ -387,5 +406,96 @@ function NewChargeTypeDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ManageTypesDialog({
+  open,
+  onOpenChange,
+  chargeTypes,
+  typeUsage,
+  onChanged,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  chargeTypes: Opt[];
+  typeUsage: Map<number, number>;
+  onChanged: () => void;
+}) {
+  const [confirm, setConfirm] = React.useState<Opt | null>(null);
+  const [loadingId, setLoadingId] = React.useState<number | null>(null);
+
+  async function doDelete(t: Opt) {
+    setLoadingId(t.id);
+    const res = await deleteChargeType(t.id);
+    setLoadingId(null);
+    if (res.ok) {
+      toast.success(`"${t.name}" deleted`);
+      setConfirm(null);
+      onChanged();
+    } else {
+      toast.error(res.error);
+    }
+  }
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage charge types</DialogTitle>
+            <DialogDescription>
+              Delete a charge type to remove it from the dropdown everywhere. Past bills keep their item names.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-80 space-y-1 overflow-y-auto">
+            {chargeTypes.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">No charge types.</p>
+            ) : (
+              chargeTypes.map((t) => (
+                <div key={t.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">{t.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {typeUsage.get(t.id) ?? 0} price row{(typeUsage.get(t.id) ?? 0) === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-400"
+                    onClick={() => setConfirm(t)}
+                    disabled={loadingId === t.id}
+                  >
+                    {loadingId === t.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    Delete
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={!!confirm}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title={confirm ? `Delete "${confirm.name}"?` : ""}
+        description={
+          confirm
+            ? `This removes the charge type and its ${typeUsage.get(confirm.id) ?? 0} price row(s). It can't be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        destructive
+        loading={loadingId === confirm?.id}
+        onConfirm={() => confirm && doDelete(confirm)}
+      />
+    </>
   );
 }

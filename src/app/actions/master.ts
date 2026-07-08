@@ -143,6 +143,17 @@ export async function createChargeType(input: unknown): Promise<ActionResult> {
   });
 }
 
+/** Delete a charge type entirely (and its price rows). Past bills are
+ *  unaffected — they store the item name as text, not a link. */
+export async function deleteChargeType(id: number): Promise<ActionResult> {
+  return run(async () => {
+    await authorize("charges:manage");
+    // Rates cascade-delete with the type (see schema onDelete: Cascade).
+    await prisma.additionalChargeType.delete({ where: { id } });
+    revalidateMaster();
+  });
+}
+
 // ---------------- Additional charge rates ----------------
 
 export async function upsertChargeRate(id: number | null, input: unknown): Promise<ActionResult> {
