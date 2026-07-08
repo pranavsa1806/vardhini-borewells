@@ -25,6 +25,7 @@ export interface CustomerRecord {
   id: number;
   customerName: string;
   mobile: string;
+  vehicleNumber?: string | null;
   address?: string | null;
   village?: string | null;
   taluk?: string | null;
@@ -45,6 +46,7 @@ export function CustomerFormDialog({ open, onOpenChange, customer, onSaved }: Pr
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(customerSchema) });
 
@@ -53,6 +55,7 @@ export function CustomerFormDialog({ open, onOpenChange, customer, onSaved }: Pr
       reset({
         customerName: customer?.customerName ?? "",
         mobile: customer?.mobile ?? "",
+        vehicleNumber: customer?.vehicleNumber ?? "",
         address: customer?.address ?? "",
         village: customer?.village ?? "",
         taluk: customer?.taluk ?? "",
@@ -94,6 +97,16 @@ export function CustomerFormDialog({ open, onOpenChange, customer, onSaved }: Pr
               <Input {...register("mobile")} placeholder="98800 00000" />
               {errors.mobile && <p className="text-xs text-red-400">{errors.mobile.message}</p>}
             </div>
+          </div>
+          <div className={field}>
+            <Label>Vehicle Number</Label>
+            <Input
+              {...register("vehicleNumber")}
+              placeholder="TN02CA7518"
+              className="uppercase"
+              autoCapitalize="characters"
+              onChange={(e) => setValue("vehicleNumber", e.target.value.toUpperCase())}
+            />
           </div>
           <div className={field}>
             <Label>Address</Label>

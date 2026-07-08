@@ -29,6 +29,7 @@ export async function createCustomer(input: unknown): Promise<ActionResult<{ id:
       data: {
         customerName: data.customerName,
         mobile: data.mobile,
+        vehicleNumber: data.vehicleNumber ? data.vehicleNumber.toUpperCase().trim() : null,
         address: data.address || null,
         village: data.village || null,
         taluk: data.taluk || null,
@@ -50,6 +51,7 @@ export async function updateCustomer(id: number, input: unknown): Promise<Action
       data: {
         customerName: data.customerName,
         mobile: data.mobile,
+        vehicleNumber: data.vehicleNumber ? data.vehicleNumber.toUpperCase().trim() : null,
         address: data.address || null,
         village: data.village || null,
         taluk: data.taluk || null,

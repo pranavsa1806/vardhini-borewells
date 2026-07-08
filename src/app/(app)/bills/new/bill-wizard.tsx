@@ -40,6 +40,7 @@ import {
   AlertTriangle,
   Check,
   UserPlus,
+  Trash2,
 } from "lucide-react";
 
 interface Slab {
@@ -55,10 +56,17 @@ interface BorewellTypeOpt {
 }
 interface ChargeRate {
   id: number;
+  chargeTypeId: number;
   borewellTypeId: number;
   name: string;
   price: number;
   unit: ChargeUnit;
+}
+interface CustomLine {
+  id: string;
+  description: string;
+  quantity: string;
+  rate: string;
 }
 interface CustomerLite {
   id: number;
@@ -104,6 +112,8 @@ export function BillWizard({ formData, recentCustomers, preselectedCustomer, ini
 
   // Charges: map chargeRateId -> quantity
   const [selectedCharges, setSelectedCharges] = React.useState<Record<number, number>>({});
+  // One-off custom charges typed for this bill only.
+  const [customLines, setCustomLines] = React.useState<CustomLine[]>([]);
 
   const [submitting, setSubmitting] = React.useState(false);
 
@@ -118,7 +128,23 @@ export function BillWizard({ formData, recentCustomers, preselectedCustomer, ini
   }, [custQuery, custOpen]);
 
   const selectedType = formData.borewellTypes.find((t) => t.id === typeId) ?? null;
-  const availableCharges = formData.chargeRates.filter((c) => c.borewellTypeId === typeId);
+
+  // Every charge is available for every bore: for the selected bore, use its
+  // configured (admin-set, locked) price; if this charge has no rate for that
+  // bore, fall back to the charge's price configured for another bore.
+  const availableCharges = React.useMemo(() => {
+    const byType = new Map<number, ChargeRate[]>();
+    for (const r of formData.chargeRates) {
+      if (!byType.has(r.chargeTypeId)) byType.set(r.chargeTypeId, []);
+      byType.get(r.chargeTypeId)!.push(r);
+    }
+    const out: ChargeRate[] = [];
+    for (const rates of byType.values()) {
+      const exact = rates.find((r) => r.borewellTypeId === typeId);
+      out.push(exact ?? rates[0]);
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name));
+  }, [formData.chargeRates, typeId]);
 
   const depthNum = parseInt(depth || "0", 10) || 0;
 
@@ -140,7 +166,20 @@ export function BillWizard({ formData, recentCustomers, preselectedCustomer, ini
       .filter(Boolean) as { rate: ChargeRate; qty: number; amount: number }[];
   }, [selectedCharges, availableCharges]);
 
-  const additionalTotal = chargeLines.reduce((s, l) => s + l.amount, 0);
+  // Live custom-charge totals (qty × price; blank qty counts as 1).
+  const customLineAmounts = React.useMemo(
+    () =>
+      customLines.map((l) => {
+        const qty = parseFloat(l.quantity) || 0;
+        const rate = parseFloat(l.rate) || 0;
+        const amount = (qty > 0 ? qty : 1) * rate;
+        return { ...l, amount: rate > 0 ? amount : 0 };
+      }),
+    [customLines],
+  );
+
+  const additionalTotal =
+    chargeLines.reduce((s, l) => s + l.amount, 0) + customLineAmounts.reduce((s, l) => s + l.amount, 0);
   const discountNum = parseFloat(discount || "0") || 0;
   const totals = calculateBillTotals({
     drillingTotal: drilling.total,
@@ -176,6 +215,16 @@ export function BillWizard({ formData, recentCustomers, preselectedCustomer, ini
     setSelectedCharges((prev) => ({ ...prev, [id]: Math.max(0, qty) }));
   }
 
+  function addCustomLine() {
+    setCustomLines((prev) => [...prev, { id: crypto.randomUUID(), description: "", quantity: "1", rate: "" }]);
+  }
+  function updateCustomLine(id: string, patch: Partial<CustomLine>) {
+    setCustomLines((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+  }
+  function removeCustomLine(id: string) {
+    setCustomLines((prev) => prev.filter((l) => l.id !== id));
+  }
+
   async function onSubmit() {
     if (!customer) return toast.error("Select a customer first.");
     if (!typeId) return toast.error("Select a borewell type.");
@@ -192,6 +241,14 @@ export function BillWizard({ formData, recentCustomers, preselectedCustomer, ini
       discount: discountNum,
       taxRate: 0,
       charges: chargeLines.map((l) => ({ chargeRateId: l.rate.id, quantity: l.qty })),
+      customCharges: customLines
+        .filter((l) => l.description.trim() && (parseFloat(l.rate) || 0) > 0)
+        .map((l) => ({
+          description: l.description.trim(),
+          quantity: parseFloat(l.quantity) || 1,
+          rate: parseFloat(l.rate) || 0,
+          unit: "nos",
+        })),
     });
     setSubmitting(false);
 
@@ -375,9 +432,9 @@ export function BillWizard({ formData, recentCustomers, preselectedCustomer, ini
                 <Plus className="h-4 w-4 text-primary" /> Additional charges
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-5">
               {availableCharges.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No additional charges configured for this borewell type.</p>
+                <p className="text-sm text-muted-foreground">No additional charges configured yet.</p>
               ) : (
                 <div className="space-y-2">
                   {availableCharges.map((c) => {
@@ -428,6 +485,55 @@ export function BillWizard({ formData, recentCustomers, preselectedCustomer, ini
                   })}
                 </div>
               )}
+
+              {/* Custom, one-off charges specific to this bill */}
+              <div className="space-y-2 border-t border-border pt-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">Custom charges</p>
+                  <Button type="button" variant="outline" size="sm" onClick={addCustomLine}>
+                    <Plus className="h-4 w-4" /> Add custom charge
+                  </Button>
+                </div>
+                {customLines.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Add a one-off item specific to this customer (e.g. a special charge) with its own price.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {customLineAmounts.map((l) => (
+                      <div key={l.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3">
+                        <Input
+                          value={l.description}
+                          onChange={(e) => updateCustomLine(l.id, { description: e.target.value })}
+                          placeholder="Item name (e.g. Rock cutting)"
+                          className="h-9 min-w-[10rem] flex-1"
+                        />
+                        <Input
+                          type="number"
+                          min={0}
+                          value={l.quantity}
+                          onChange={(e) => updateCustomLine(l.id, { quantity: e.target.value })}
+                          placeholder="Qty"
+                          className="h-9 w-20"
+                        />
+                        <span className="text-xs text-muted-foreground">×</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={l.rate}
+                          onChange={(e) => updateCustomLine(l.id, { rate: e.target.value })}
+                          placeholder="Price ₹"
+                          className="h-9 w-28"
+                        />
+                        <span className="w-24 text-right text-sm font-semibold tabular-nums">{formatCurrency(l.amount)}</span>
+                        <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-red-400" onClick={() => removeCustomLine(l.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -465,6 +571,15 @@ export function BillWizard({ formData, recentCustomers, preselectedCustomer, ini
                       value={formatCurrency(l.amount)}
                     />
                   ))}
+                  {customLineAmounts
+                    .filter((l) => l.amount > 0)
+                    .map((l) => (
+                      <Row
+                        key={l.id}
+                        label={<span className="text-muted-foreground">{l.description || "Custom"}</span>}
+                        value={formatCurrency(l.amount)}
+                      />
+                    ))}
                   <Separator />
                   <Row label="Subtotal" value={formatCurrency(totals.subtotal)} />
                   <div className="flex items-center justify-between gap-2">

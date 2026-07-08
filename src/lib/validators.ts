@@ -3,6 +3,8 @@ import { z } from "zod";
 export const customerSchema = z.object({
   customerName: z.string().min(2, "Name is required"),
   mobile: z.string().min(7, "Valid mobile required").max(15),
+  // Vehicle number (e.g. TN02CA7518) — uppercased when saved.
+  vehicleNumber: z.string().optional().or(z.literal("")),
   address: z.string().optional().or(z.literal("")),
   village: z.string().optional().or(z.literal("")),
   taluk: z.string().optional().or(z.literal("")),
@@ -17,6 +19,14 @@ export const billChargeLineSchema = z.object({
   quantity: z.number().min(0).default(0),
 });
 
+// A free-text custom charge specific to one bill (name + qty + price).
+export const customChargeLineSchema = z.object({
+  description: z.string().min(1, "Enter a name"),
+  quantity: z.number().min(0).default(1),
+  rate: z.number().min(0).default(0),
+  unit: z.string().optional().or(z.literal("")),
+});
+
 export const createBillSchema = z.object({
   customerId: z.number().int().positive("Select a customer"),
   borewellTypeId: z.number().int().positive("Select a borewell type"),
@@ -25,6 +35,7 @@ export const createBillSchema = z.object({
   waterLevel: z.number().int().nonnegative().optional().nullable(),
   remarks: z.string().optional().or(z.literal("")),
   charges: z.array(billChargeLineSchema).default([]),
+  customCharges: z.array(customChargeLineSchema).default([]),
   discount: z.number().min(0).default(0),
   taxRate: z.number().min(0).max(100).default(0),
 });

@@ -131,8 +131,13 @@ export async function createChargeType(input: unknown): Promise<ActionResult> {
   return run(async () => {
     await authorize("charges:manage");
     const data = chargeTypeSchema.parse(input);
+    // Block case-insensitive duplicates (e.g. "Bore Flushing" vs "BORE FLUSHING").
+    const existing = await prisma.additionalChargeType.findFirst({
+      where: { name: { equals: data.name.trim(), mode: "insensitive" } },
+    });
+    if (existing) throw new Error(`A charge named "${existing.name}" already exists.`);
     await prisma.additionalChargeType.create({
-      data: { name: data.name, description: data.description || null },
+      data: { name: data.name.trim(), description: data.description || null },
     });
     revalidateMaster();
   });

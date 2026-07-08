@@ -11,6 +11,7 @@ import {
   calculateAdditionalCharge,
   calculateBillTotals,
   unitLabel,
+  round2,
   type ChargeUnit,
 } from "@/lib/calc";
 import type { CreateBillInput } from "@/lib/validators";
@@ -98,6 +99,24 @@ export async function buildBill(
         amount,
       });
     }
+  }
+
+  // Custom, one-off charges typed on this bill (name + qty + price).
+  for (const cc of input.customCharges ?? []) {
+    const desc = cc.description?.trim();
+    const rate = Number(cc.rate) || 0;
+    if (!desc || rate <= 0) continue;
+    const qty = cc.quantity && cc.quantity > 0 ? cc.quantity : 1;
+    const amount = round2(qty * rate);
+    additionalTotal += amount;
+    items.push({
+      itemType: "ADDITIONAL",
+      description: desc,
+      quantity: qty,
+      unit: cc.unit?.trim() || "nos",
+      rate,
+      amount,
+    });
   }
 
   const totals = calculateBillTotals({

@@ -102,14 +102,15 @@ model AdditionalChargeRate {
 // ---------------------------------------------------------------------------
 
 model Customer {
-  id           Int     @id @default(autoincrement())
-  customerName String  @map("customer_name")
-  mobile       String
-  address      String?
-  village      String?
-  taluk        String?
-  district     String?
-  state        String?
+  id            Int     @id @default(autoincrement())
+  customerName  String  @map("customer_name")
+  mobile        String
+  vehicleNumber String? @map("vehicle_number")
+  address       String?
+  village       String?
+  taluk         String?
+  district      String?
+  state         String?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

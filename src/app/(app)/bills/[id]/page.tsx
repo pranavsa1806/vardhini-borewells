@@ -49,6 +49,7 @@ export default async function BillDetailPage({ params }: { params: Promise<{ id:
     customer: {
       name: bill.customer.customerName,
       mobile: bill.customer.mobile,
+      vehicleNumber: bill.customer.vehicleNumber,
       address: [bill.customer.address, bill.customer.village, bill.customer.taluk, bill.customer.district, bill.customer.state]
         .filter(Boolean)
         .join(", "),

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { CustomerActions } from "./customer-actions";
-import { ReceiptText, IndianRupee, Wallet, MapPin, Phone, ArrowLeft, PlusCircle } from "lucide-react";
+import { ReceiptText, IndianRupee, Wallet, MapPin, Phone, ArrowLeft, PlusCircle, Truck } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +53,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
               id: customer.id,
               customerName: customer.customerName,
               mobile: customer.mobile,
+              vehicleNumber: customer.vehicleNumber,
               address: customer.address,
               village: customer.village,
               taluk: customer.taluk,
@@ -79,6 +80,12 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
               <Phone className="h-4 w-4 text-muted-foreground" />
               <span>{customer.mobile}</span>
             </div>
+            {customer.vehicleNumber && (
+              <div className="flex items-center gap-2">
+                <Truck className="h-4 w-4 text-muted-foreground" />
+                <span className="font-mono uppercase">{customer.vehicleNumber}</span>
+              </div>
+            )}
             <div className="flex items-start gap-2">
               <MapPin className="mt-0.5 h-4 w-4 text-muted-foreground" />
               <span>{[customer.address, location].filter(Boolean).join(", ") || "No address on file"}</span>

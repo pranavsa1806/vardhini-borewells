@@ -25,7 +25,7 @@ interface BillData {
   status: string;
   cancelledReason: string | null;
   diameter: string;
-  customer: { name: string; mobile: string; address: string };
+  customer: { name: string; mobile: string; vehicleNumber?: string | null; address: string };
   items: BillItem[];
   paid: number;
   balance: number;
@@ -84,6 +84,9 @@ export function BillReceipt({
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Bill To</p>
           <p className="mt-1 text-base font-semibold">{bill.customer.name}</p>
           <p className="text-sm text-zinc-600">{bill.customer.mobile}</p>
+          {bill.customer.vehicleNumber && (
+            <p className="text-sm font-medium uppercase text-zinc-700">Vehicle: {bill.customer.vehicleNumber}</p>
+          )}
           {bill.customer.address && <p className="max-w-xs text-sm text-zinc-600">{bill.customer.address}</p>}
         </div>
         <div className="text-right text-sm text-zinc-600">

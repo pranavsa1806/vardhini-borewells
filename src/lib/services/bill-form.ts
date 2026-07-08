@@ -31,6 +31,7 @@ export async function getBillFormData() {
     })),
     chargeRates: chargeRates.map((r) => ({
       id: r.id,
+      chargeTypeId: r.additionalChargeTypeId,
       borewellTypeId: r.borewellTypeId,
       name: r.chargeType.name,
       price: Number(r.price),
